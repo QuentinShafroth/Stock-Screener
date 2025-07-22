@@ -1,8 +1,17 @@
-import streamlit as st
+e_data(ttl=timedelta(days=1)) # Cache for 1 day to avoid frequent Wikipedia fetches
+def get_sp500_tickers():
+    """
+    Fetches the list of S&P 500 tickers from Wikipedia.
+    Handles the '. ' to '-' replacement for compatibility with yfinance.
+    """
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    try:
+        tables = pd.read_html(url)
+        import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
-import io # Import io for potential future use, though not strictly needed for current yfinance
+import io
 
 # --- Streamlit App Configuration ---
 st.set_page_config(
@@ -13,16 +22,7 @@ st.set_page_config(
 
 # --- Cell 1: Import Libraries and Define Ticker Fetching Function ---
 
-@st.cache_data(ttl=timedelta(days=1)) # Cache for 1 day to avoid frequent Wikipedia fetches
-def get_sp500_tickers():
-    """
-    Fetches the list of S&P 500 tickers from Wikipedia.
-    Handles the '. ' to '-' replacement for compatibility with yfinance.
-    """
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    try:
-        tables = pd.read_html(url)
-        # Assuming the first table contains the S&P 500 list
+@st.cach# Assuming the first table contains the S&P 500 list
         tickers = tables[0]['Symbol'].tolist()
         # yfinance uses '-' instead of '.' for some tickers (e.g., BRK.B -> BRK-B)
         return [t.replace('.', '-') for t in tickers]
@@ -183,11 +183,18 @@ def main():
         st.warning("No momentum results generated. Check data validity or selected period.")
         return
 
-    # Ensure momentum columns are numeric for sorting and display
+    # Ensure momentum columns are numeric for sorting
     for col in ['1D', '1W', '1M', '2M']:
         momentum_df[col] = pd.to_numeric(momentum_df[col], errors='coerce')
     # Drop rows where all momentum values are NaN (e.g., if a ticker had no valid periods)
+    # IMPORTANT: This line is crucial for the number of rows.
+    initial_rows = len(momentum_df)
     momentum_df.dropna(subset=['1D', '1W', '1M', '2M'], how='all', inplace=True)
+    final_rows = len(momentum_df)
+    
+    # --- DEBUGGING LINE ADDED HERE ---
+    st.info(f"Total tickers with complete momentum data: {final_rows} (out of {initial_rows} initially calculated).")
+    # --- END DEBUGGING LINE ---
 
     st.success("Momentum calculation complete.")
 
