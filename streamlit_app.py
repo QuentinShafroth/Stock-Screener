@@ -1,13 +1,4 @@
-e_data(ttl=timedelta(days=1)) # Cache for 1 day to avoid frequent Wikipedia fetches
-def get_sp500_tickers():
-    """
-    Fetches the list of S&P 500 tickers from Wikipedia.
-    Handles the '. ' to '-' replacement for compatibility with yfinance.
-    """
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    try:
-        tables = pd.read_html(url)
-        import streamlit as st
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
@@ -17,12 +8,74 @@ import io
 st.set_page_config(
     page_title="S&P 500 Momentum Analyzer",
     page_icon="📈",
-    layout="wide"
+    layout="wide", # Use wide layout for more space
+    initial_sidebar_state="expanded" # Keep sidebar expanded by default
 )
+
+# --- Custom CSS for a cleaner look and feel ---
+st.markdown("""
+<style>
+    /* General styling for better readability and spacing */
+    .stApp {
+        background-color: #f0f2f6; /* Light grey background */
+        color: #333333; /* Darker text */
+    }
+    .stButton>button {
+        background-color: #4CAF50; /* Green button */
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    }
+    .stButton>button:hover {
+        background-color: #45a049; /* Darker green on hover */
+        box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
+        transform: translateY(-2px);
+    }
+    .stSlider > div > div > div:nth-child(1) {
+        background-color: #4CAF50; /* Slider track color */
+    }
+    .stSlider > div > div > div:nth-child(2) {
+        background-color: #4CAF50; /* Slider fill color */
+    }
+    .stSlider > div > div > div:nth-child(3) {
+        background-color: #4CAF50; /* Slider handle color */
+        border: 2px solid #4CAF50;
+    }
+    .stDataFrame {
+        border-radius: 10px;
+        box-shadow: 0px 4px 8px rgba(0,0,0,0.1);
+        overflow: hidden; /* Ensures rounded corners apply to content */
+    }
+    .stAlert {
+        border-radius: 8px;
+    }
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
+        color: #2c3e50; /* Darker headings */
+    }
+    /* Adjust sidebar width for better readability of long options */
+    section[data-testid="stSidebar"] {
+        width: 300px !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 
 # --- Cell 1: Import Libraries and Define Ticker Fetching Function ---
 
-@st.cach# Assuming the first table contains the S&P 500 list
+@st.cache_data(ttl=timedelta(days=1)) # Cache for 1 day to avoid frequent Wikipedia fetches
+def get_sp500_tickers():
+    """
+    Fetches the list of S&P 500 tickers from Wikipedia.
+    Handles the '. ' to '-' replacement for compatibility with yfinance.
+    """
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    try:
+        tables = pd.read_html(url)
+        # Assuming the first table contains the S&P 500 list
         tickers = tables[0]['Symbol'].tolist()
         # yfinance uses '-' instead of '.' for some tickers (e.g., BRK.B -> BRK-B)
         return [t.replace('.', '-') for t in tickers]
@@ -144,24 +197,53 @@ def main():
     st.title("📈 S&P 500 Momentum Analyzer")
     st.markdown("""
     This application fetches daily stock data for S&P 500 companies and calculates their price momentum
-    over various periods (1-day, 1-week, 1-month, 2-months).
+    over various periods (1-day, 1-week, 1-month, 2-months). Use the sidebar to customize your analysis.
     """)
 
-    # --- User Inputs ---
-    st.sidebar.header("Settings")
-    data_period_options = {
-        "2 Months": "2mo",
-        "3 Months": "3mo",
-        "6 Months": "6mo",
-        "1 Year": "1y",
-        "2 Years": "2y"
-    }
-    selected_period_label = st.sidebar.selectbox(
-        "Select Data Period for Download:",
-        list(data_period_options.keys()),
-        index=1 # Default to 3 Months
-    )
-    selected_period = data_period_options[selected_period_label]
+    # --- User Inputs in Sidebar ---
+    with st.sidebar:
+        st.header("Analysis Settings")
+        st.markdown("Adjust the parameters below to refine your momentum analysis.")
+
+        data_period_options = {
+            "2 Months": "2mo",
+            "3 Months": "3mo",
+            "6 Months": "6mo",
+            "1 Year": "1y",
+            "2 Years": "2y"
+        }
+        selected_period_label = st.selectbox(
+            "Select Data Period for Download:",
+            list(data_period_options.keys()),
+            index=1, # Default to 3 Months
+            help="Choose the historical period for which to download stock data."
+        )
+        selected_period = data_period_options[selected_period_label]
+
+        sort_column = st.selectbox(
+            "Sort Results by:",
+            ['1M', '1W', '1D', '2M'],
+            index=0, # Default to 1M
+            help="Select the momentum period to sort the top and bottom lists."
+        )
+        sort_order = st.radio(
+            "Sort Order:",
+            ("Highest First", "Lowest First"),
+            help="Choose to see tickers with the highest or lowest momentum first."
+        )
+        ascending = True if sort_order == "Lowest First" else False
+
+        num_display = st.slider(
+            "Number of Tickers to Display:",
+            min_value=5,
+            max_value=50,
+            value=10,
+            step=5,
+            help="Set how many top and bottom tickers to show in each table."
+        )
+
+        st.markdown("---")
+        st.markdown("Developed with ❤️ using Streamlit and yfinance.")
 
     # --- Data Download ---
     sp500_tickers = get_sp500_tickers()
@@ -186,60 +268,44 @@ def main():
     # Ensure momentum columns are numeric for sorting
     for col in ['1D', '1W', '1M', '2M']:
         momentum_df[col] = pd.to_numeric(momentum_df[col], errors='coerce')
+    
     # Drop rows where all momentum values are NaN (e.g., if a ticker had no valid periods)
-    # IMPORTANT: This line is crucial for the number of rows.
     initial_rows = len(momentum_df)
     momentum_df.dropna(subset=['1D', '1W', '1M', '2M'], how='all', inplace=True)
     final_rows = len(momentum_df)
     
-    # --- DEBUGGING LINE ADDED HERE ---
-    st.info(f"Total tickers with complete momentum data: {final_rows} (out of {initial_rows} initially calculated).")
-    # --- END DEBUGGING LINE ---
+    # Inform user about data completeness (retained for clarity, can be removed for final polish)
+    if final_rows < initial_rows:
+        st.info(f"Note: {initial_rows - final_rows} tickers were excluded due to incomplete data for all momentum periods. Displaying results for {final_rows} tickers.")
+    else:
+        st.success(f"Momentum calculated for all {final_rows} tickers.")
 
-    st.success("Momentum calculation complete.")
 
     # --- Display Results with User Controls ---
-    st.subheader("Momentum Results")
+    st.subheader("Analysis Results")
 
-    sort_column = st.sidebar.selectbox(
-        "Sort by:",
-        ['1M', '1W', '1D', '2M'],
-        index=0 # Default to 1M
-    )
-    sort_order = st.sidebar.radio(
-        "Sort Order:",
-        ("Highest First", "Lowest First")
-    )
-    ascending = True if sort_order == "Lowest First" else False
-
-    num_display = st.sidebar.slider(
-        "Number of Top/Bottom Tickers to Display:",
-        min_value=5,
-        max_value=50,
-        value=10,
-        step=5
-    )
-
-    # Format percentage columns
+    # Format percentage columns for display
     formatted_momentum_df = momentum_df.copy()
     for col in ['1D', '1W', '1M', '2M']:
         formatted_momentum_df[col] = formatted_momentum_df[col].apply(lambda x: f"{x:.2%}" if pd.notna(x) else "N/A")
 
-    # Display Top Results
-    st.markdown(f"#### Top {num_display} Tickers by {sort_column} Change")
-    top_results = momentum_df.sort_values(sort_column, ascending=False).head(num_display)
-    # Use the formatted DataFrame for display
-    st.dataframe(formatted_momentum_df.loc[top_results.index].reset_index(drop=True))
+    # Use columns for a cleaner side-by-side display
+    col1, col2 = st.columns(2)
 
+    with col1:
+        st.markdown(f"#### Top {min(num_display, final_rows)} Tickers by {sort_column} Change")
+        # Ensure we don't try to display more rows than available
+        top_results = momentum_df.sort_values(sort_column, ascending=False).head(num_display)
+        st.dataframe(formatted_momentum_df.loc[top_results.index].reset_index(drop=True), use_container_width=True)
 
-    # Display Bottom Results
-    st.markdown(f"#### Bottom {num_display} Tickers by {sort_column} Change")
-    bottom_results = momentum_df.sort_values(sort_column, ascending=True).head(num_display)
-    # Use the formatted DataFrame for display
-    st.dataframe(formatted_momentum_df.loc[bottom_results.index].reset_index(drop=True))
+    with col2:
+        st.markdown(f"#### Bottom {min(num_display, final_rows)} Tickers by {sort_column} Change")
+        # Ensure we don't try to display more rows than available
+        bottom_results = momentum_df.sort_values(sort_column, ascending=True).head(num_display)
+        st.dataframe(formatted_momentum_df.loc[bottom_results.index].reset_index(drop=True), use_container_width=True)
 
     st.markdown("---")
-    st.info("Data provided by Yahoo Finance. Momentum is calculated based on daily close prices.")
+    st.info("Data provided by Yahoo Finance. Momentum is calculated based on daily close prices. Performance is not indicative of future results.")
 
 if __name__ == '__main__':
     main()
