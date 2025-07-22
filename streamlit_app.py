@@ -20,6 +20,11 @@ st.markdown("""
         background-color: #1a1a1a; /* Dark background */
         color: #e0e0e0; /* Light grey text for better readability */
     }
+    /* Ensure all text within the main app body is readable */
+    .stApp, .stMarkdown, .stText, .stCode, .stAlert > div > div {
+        color: #e0e0e0; /* Consistent light text color */
+    }
+
     .stButton>button {
         background-color: #4CAF50; /* Green button */
         color: white;
@@ -32,7 +37,7 @@ st.markdown("""
     }
     .stButton>button:hover {
         background-color: #45a049; /* Darker green on hover */
-        box-shadow: 3px 3px 8px rgba(0,0,0,0.5);
+        box_shadow: 3px 3px 8px rgba(0,0,0,0.5);
         transform: translateY(-2px);
     }
     /* Slider colors - keep them vibrant */
