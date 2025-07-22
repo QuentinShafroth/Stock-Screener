@@ -24,7 +24,8 @@ WORKDIR /app
 
 # Copy requirements.txt and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies from requirements.txt and also explicitly install lxml
+RUN pip install --no-cache-dir -r requirements.txt lxml
 
 # Copy the rest of the application code
 COPY . .
