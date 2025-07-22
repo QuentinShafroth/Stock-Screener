@@ -1,0 +1,36 @@
+# Use the official Python image as a base
+FROM python:3.9-slim-buster
+
+# Set environment variables
+ENV PYTHONUNBUFFERED 1
+
+# Create a non-root user for security
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends git procps \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Switch to the non-root user
+USER $USERNAME
+
+# Set the working directory
+WORKDIR /app
+
+# Copy requirements.txt and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
+COPY . .
+
+# Expose the port Streamlit runs on
+EXPOSE 8501
+
+# Command to run the Streamlit app when the container starts (optional, can be overridden)
+CMD ["streamlit", "run", "momentum_app.py", "--server.port", "8501", "--server.enableCORS", "false", "--server.enableXsrfProtection", "false"]
