@@ -1,6 +1,3 @@
-I understand you'd like the README.md Canvas content to be code-pasteable for GitHub. This means providing the raw Markdown text.
-
-Here is the content for your README.md file:
 
 Markdown
 
