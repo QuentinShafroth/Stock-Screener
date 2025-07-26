@@ -401,20 +401,22 @@ def main():
     # --- Company Descriptions and Sector Summaries (Second) ---
     st.header("Detailed Company Information (Description & Sector)")
 
-    # Determine top and bottom 1W tickers for details fetching
-    momentum_df_sorted_1w_top = momentum_df.sort_values('1W', ascending=False).dropna(subset=['1W'])
-    top_1w_tickers = momentum_df_sorted_1w_top.head(10)['Ticker'].to_list()
+    # Determine top and bottom tickers for details fetching based on user's sort_column and num_display
+    # Filter out NaNs in the sort_column before sorting
+    momentum_df_filtered = momentum_df.dropna(subset=[sort_column])
 
-    momentum_df_sorted_1w_bottom = momentum_df.sort_values('1W', ascending=True).dropna(subset=['1W'])
-    bottom_1w_tickers = momentum_df_sorted_1w_bottom.head(10)['Ticker'].to_list()
-    
+    momentum_df_sorted_top = momentum_df_filtered.sort_values(sort_column, ascending=False)
+    top_tickers = momentum_df_sorted_top.head(num_display)['Ticker'].to_list()
+
+    momentum_df_sorted_bottom = momentum_df_filtered.sort_values(sort_column, ascending=True)
+    bottom_tickers = momentum_df_sorted_bottom.head(num_display)['Ticker'].to_list()
     # Combine the lists and remove duplicates using set for efficient fetching
-    all_tickers_for_details = list(set(top_1w_tickers + bottom_1w_tickers)) 
+    all_tickers_for_details = list(set(top_tickers + bottom_tickers))
 
     if not all_tickers_for_details:
         st.info("No tickers available to fetch descriptions or sectors for. Please ensure momentum data is present.")
     else:
-        st.info(f"Fetching descriptions and sectors for {len(all_tickers_for_details)} top/bottom 1-week momentum tickers...")
+        st.info(f"Fetching news for {len(all_tickers_for_details)} top/bottom tickers by {sort_column} momentum...")
         with st.spinner("Retrieving company details..."):
             for ticker in all_tickers_for_details:
                 description, sector = get_company_description_and_sector_yf(ticker)
