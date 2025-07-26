@@ -1,29 +1,3 @@
-It's a great idea to integrate sector information and present the data in a logical flow! This will enhance the user experience by providing more context about the companies.
-
-Here's how I've updated your Streamlit app:
-
-get_company_description_and_sector_yf Function:
-
-I've modified the existing get_company_description_yf function to also retrieve the sector from ticker.info.
-
-This function now returns both the description and sector as a tuple.
-
-It's still cached to optimize performance, as this data doesn't change frequently.
-
-Display Reordering in main function:
-
-The Streamlit display flow is now structured as you requested:
-
-Momentum Tables: The "Top/Bottom Tickers" tables are displayed first.
-
-Company Descriptions and Sectors: A new section "Detailed Company Information (Description & Sector)" now follows the tables. For each relevant ticker, it will display the sector and then the description.
-
-News Headlines: The "Latest Headlines" section is now positioned after the company descriptions and sectors.
-
-This updated structure makes the information more digestible, starting with the high-level momentum trends, then diving into company specifics, and finally providing current news.
-
-Python
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
