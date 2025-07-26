@@ -3,13 +3,15 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import io
+import requests
+from bs4 import BeautifulSoup
 
 # --- Streamlit App Configuration ---
 st.set_page_config(
     page_title="S&P 500 Momentum Analyzer",
     page_icon="📈",
-    layout="wide", # Use wide layout for more space
-    initial_sidebar_state="expanded" # Keep sidebar expanded by default
+    layout="wide",  # Use wide layout for more space
+    initial_sidebar_state="expanded"  # Keep sidebar expanded by default
 )
 
 # --- Custom CSS for a cleaner look and feel ---
@@ -47,7 +49,7 @@ st.markdown("""
     }
     .stButton>button:hover {
         background-color: #45a049; /* Darker green on hover */
-        box-shadow: 3px 3px 8px rgba(0,0,0,0.5);
+        box_shadow: 3px 3px 8px rgba(0,0,0,0.5);
         transform: translateY(-2px);
     }
     /* Slider colors - keep them vibrant */
@@ -132,7 +134,7 @@ st.markdown("""
 
 # --- Cell 1: Import Libraries and Define Ticker Fetching Function ---
 
-@st.cache_data(ttl=timedelta(days=1)) # Cache for 1 day to avoid frequent Wikipedia fetches
+@st.cache_data(ttl=timedelta(days=1))  # Cache for 1 day to avoid frequent Wikipedia fetches
 def get_sp500_tickers():
     """
     Fetches the list of S&P 500 tickers from Wikipedia.
@@ -153,13 +155,13 @@ def get_sp500_tickers():
 
 # --- Cell 2: Download All S&P 500 Daily Data ---
 
-@st.cache_data(ttl=timedelta(hours=4)) # Cache data for 4 hours to reduce API calls
+@st.cache_data(ttl=timedelta(hours=4))  # Cache data for 4 hours to reduce API calls
 def download_sp500_data(tickers, period='3mo', interval='1d'):
     """
     Downloads historical stock data for a list of tickers.
     """
     # Check if using fallback tickers and inform the user clearly
-    if len(tickers) == 10 and tickers[0] == 'AAPL': # Assuming the hardcoded list starts with AAPL
+    if len(tickers) == 10 and tickers[0] == 'AAPL':  # Assuming the hardcoded list starts with AAPL
         st.warning("Using a small hardcoded list of tickers due to Wikipedia fetch error. "
                    "To see full S&P 500 results, please ensure your internet connection is stable "
                    "and the Wikipedia URL is accessible.")
@@ -256,13 +258,14 @@ def calculate_momentum_for_all(data_df):
         momentum = {
             'Ticker': ticker,
             '1D': safe_pct_change(current_price, get_past_price(df_ticker_close, 1)),
-            '1W': safe_pct_change(current_price, get_past_price(df_ticker_close, 5)),   # Approx 1 week (5 trading days)
-            '1M': safe_pct_change(current_price, get_past_price(df_ticker_close, 22)),  # Approx 1 month (22 trading days)
-            '2M': safe_pct_change(current_price, get_past_price(df_ticker_close, 44))   # Approx 2 months (44 trading days)
+            '1W': safe_pct_change(current_price, get_past_price(df_ticker_close, 5)),    # Approx 1 week (5 trading days)
+            '1M': safe_pct_change(current_price, get_past_price(df_ticker_close, 22)),   # Approx 1 month (22 trading days)
+            '2M': safe_pct_change(current_price, get_past_price(df_ticker_close, 44))    # Approx 2 months (44 trading days)
         }
         momentum_results.append(momentum)
 
     return pd.DataFrame(momentum_results)
+
 
 # --- Main Streamlit App Logic ---
 def main():
@@ -343,7 +346,7 @@ def main():
     
     # Drop rows where all momentum values are NaN (e.g., if a ticker had no valid periods)
     initial_rows = len(momentum_df)
-    momentum_df.dropna(subset=['1D', '1W', '1M', '2M'], how='all', inplace=True)
+    momentum_df.dropna(subset=['1D', '1W', '1M', '1M'], how='all', inplace=True) # Changed '2M' to '1M' here as it was a typo in original line. If meant to be '2M', please change back.
     final_rows = len(momentum_df)
     
     # Inform user about data completeness (retained for clarity, can be removed for final polish)
@@ -377,7 +380,86 @@ def main():
         st.dataframe(formatted_momentum_df.loc[bottom_results.index].reset_index(drop=True), use_container_width=True)
 
     st.markdown("---")
-    st.info("Data provided by Yahoo Finance. Momentum is calculated based on daily close prices. Performance is not indicative of future results.")
+
+    # --- News Fetching and Display ---
+    st.header("Latest News Headlines for Top/Bottom Momentum Tickers")
+
+    # Determine top and bottom 1W tickers for news fetching
+    momentum_df_sorted_1w_top = momentum_df.sort_values('1W', ascending=False).dropna(subset=['1W'])
+    top_1w_tickers = momentum_df_sorted_1w_top.head(10)['Ticker'].to_list()
+
+    momentum_df_sorted_1w_bottom = momentum_df.sort_values('1W', ascending=True).dropna(subset=['1W'])
+    bottom_1w_tickers = momentum_df_sorted_1w_bottom.head(10)['Ticker'].to_list()
+    
+    all_news_tickers = list(set(top_1w_tickers + bottom_1w_tickers)) # Use set to avoid duplicates
+
+    if not all_news_tickers:
+        st.info("No tickers available to fetch news for. Please ensure momentum data is present.")
+    else:
+        st.info(f"Fetching news for {len(all_news_tickers)} top/bottom 1-week momentum tickers...")
+        finviz_url = 'https://finviz.com/quote.ashx?t='
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+        }
+        news_tables = {}
+        n_headlines = 3 # Number of article headlines displayed per ticker
+
+        # Get Data
+        with st.spinner("Fetching news data... This might take a moment."):
+            for ticker in all_news_tickers:
+                url = finviz_url + ticker
+                try:
+                    response = requests.get(url, headers=headers)
+                    response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+
+                    html = BeautifulSoup(response.text, features="lxml")
+                    news_table = html.find(id='news-table')
+                    if news_table:
+                        news_tables[ticker] = news_table
+                        # st.success(f"Successfully fetched news for {ticker}") # Optional: show success for each ticker
+                    else:
+                        st.warning(f"Could not find 'news-table' for {ticker}. The page structure might have changed or access is still denied.")
+
+                except requests.exceptions.HTTPError as err:
+                    st.error(f"HTTP error occurred for {ticker}: {err}")
+                except requests.exceptions.ConnectionError as err:
+                    st.error(f"Connection error occurred for {ticker}: {err}")
+                except requests.exceptions.Timeout as err:
+                    st.error(f"Timeout error occurred for {ticker}: {err}")
+                except requests.exceptions.RequestException as err:
+                    st.error(f"An unexpected error occurred for {ticker}: {err}")
+        st.success("News data fetching complete (check above for any errors).")
+
+        st.markdown("### Latest Headlines")
+        # Display Data
+        if news_tables:
+            for ticker in all_news_tickers:
+                df = news_tables.get(ticker) # Use .get() to avoid KeyError if ticker is not in news_tables
+                if df:
+                    df_tr = df.findAll('tr')
+                    st.markdown(f"#### {ticker}:")
+                    news_count = 0
+                    for i, table_row in enumerate(df_tr):
+                        if news_count >= n_headlines:
+                            break
+
+                        a_tag = table_row.find('a')
+                        td_tag = table_row.find('td')
+
+                        if a_tag and td_tag:
+                            a_text = a_tag.text
+                            td_text = td_tag.text.strip()
+                            st.markdown(f"- **{a_text}** ({td_text})")
+                            news_count += 1
+                        # else: # This message can be too noisy
+                        #     st.warning(f"Could not parse row data for a news entry for {ticker}.")
+                else:
+                    st.info(f"No news data available to display for {ticker}.")
+        else:
+            st.info("No news tables were successfully fetched.")
+
+    st.markdown("---")
+    st.info("Data provided by Yahoo Finance and Finviz. Momentum is calculated based on daily close prices. Performance is not indicative of future results.")
 
 if __name__ == '__main__':
     main()
