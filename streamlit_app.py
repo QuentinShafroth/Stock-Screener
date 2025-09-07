@@ -126,7 +126,9 @@ st.markdown("""
     .st-emotion-cache-1g610q5 div div div div:nth-child(2) { /* Targeting the slider value text */
         color: #e0e0e0 !important;
     }
-
+    /* Force all sidebar text to be light gray */
+section[data-testid="stSidebar"] * {
+    color: #e0e0e0 !important;
 
 </style>
 """, unsafe_allow_html=True)
@@ -142,7 +144,9 @@ def get_sp500_tickers():
     """
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     try:
-        tables = pd.read_html(url)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        html = requests.get(url, headers=headers).text
+        tables = pd.read_html(html)
         # Assuming the first table contains the S&P 500 list
         tickers = tables[0]['Symbol'].tolist()
         # yfinance uses '-' instead of '.' for some tickers (e.g., BRK.B -> BRK-B)
